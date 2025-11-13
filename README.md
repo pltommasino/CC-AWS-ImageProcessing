@@ -5,7 +5,7 @@
 This guide explains how to serve your local HTML files over **HTTPS** using the **Live Server** extension in Visual Studio Code:
 
 #### 🗂️ 1. Open the correct project directory
-> Open **the exact folder that contains the HTML file** you want to expose through HTTPS on localhost. Live Server reads its configuration only from the root of the opened folder, so this step is crucial.
+Open **the exact folder that contains the HTML file** you want to expose through HTTPS on localhost. Live Server reads its configuration only from the root of the opened folder, so this step is crucial.
 
 #### 🗂️ 2. Create the `https` directory
 Inside your project folder, run:
