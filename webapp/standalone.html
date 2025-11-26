@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Resizer - AWS Lambda</title>
+    <title>BW Image Converter</title>
     <meta name="description" content="Ridimensiona le tue foto con AWS Lambda">
     
     <!-- Tailwind CSS CDN -->
@@ -110,7 +110,7 @@
         <div class="max-w-5xl mx-auto px-6 py-6">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-semibold tracking-tight">Cloud Computing Image Resizer</h1>
+                    <h1 class="text-3xl font-semibold tracking-tight">BW Image Converter</h1>
                     <p class="text-sm text-muted-foreground mt-1">Tommasino Pasquale Luca &amp; Proietti Francesco Project</p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -119,18 +119,18 @@
                     <button id="loginButton"
                         class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-10 rounded-md px-5 text-xs"
                         data-testid="login-button">
-                        Accedi
+                        Log In
                     </button>
 
                     <button id="signupButton"
                         class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-10 rounded-md px-5 text-xs"
                         data-testid="signup-button">
-                        Registrati
+                        Sign Up
                     </button>
 
                     <button id="logoutButton"
                         class="hidden inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input shadow-sm hover:bg-red-50 text-red-600 h-10 rounded-md px-5 text-xs">
-                        Esci
+                        Log Out
                     </button>
                 </div>
             </div>
@@ -151,20 +151,20 @@
                 </div>
                 
                 <h2 class="text-xl font-medium mb-2" id="uploadTitle">
-                    Effettua l'accesso per caricare le immagini
+                    Please log in to upload images
                 </h2>
                 
                 <p class="text-muted-foreground mb-6" id="uploadSubtitle">
-                    L'area di upload è disponibile solo agli utenti autenticati tramite AWS Cognito
+                    The upload area is only available to authenticated users via AWS Cognito.
                 </p>
                 
                 <button id="selectFileBtn"
                     class="px-6 py-2 border border-border rounded-lg bg-white font-medium shadow-sm transition-colors cursor-not-allowed">
-                    Seleziona File
+                    Select file/s
                 </button>
                 
                 <p class="text-xs text-muted-foreground mt-6">
-                    Formati supportati: JPG, JPEG, PNG
+                    Supported formats: JPG, JPEG, PNG
                 </p>
                 
                 <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
@@ -173,7 +173,7 @@
             <div id="lockedOverlay"
                 class="pointer-events-none absolute inset-0 flex items-center justify-center bg-white-900/40 backdrop-blur-sm">
                 <div class="bg-white border border-border rounded-lg px-10 py-5 text-xs text-muted-foreground shadow-lg">
-                    Autenticati per sbloccare il caricamento immagini.
+                    Authenticate to unlock image uploads.
                 </div>
             </div>
         </div>
@@ -182,16 +182,16 @@
         <div id="filesList" class="mt-12 hidden">
             <div class="flex items-center justify-between mb-6">
                 <h3 class="text-lg font-medium">
-                    Immagini (<span id="fileCount">0</span>)
+                    Images (<span id="fileCount">0</span>)
                 </h3>
                 
                 <div class="flex gap-3">
                     <button onclick="clearAllFiles()" id="clearAllBtn" class="px-4 py-2 border border-border rounded-lg bg-white hover:bg-gray-50 text-sm font-medium transition-colors">
-                        Rimuovi Tutto
+                        Remove all images                    
                     </button>
                     
                     <button onclick="uploadAllFiles()" id="uploadAllBtn" class="px-4 py-2 bg-foreground text-white rounded-lg hover:bg-gray-800 text-sm font-medium shadow-sm transition-colors">
-                        Carica Tutto
+                        Load all images
                     </button>
                 </div>
             </div>
@@ -204,23 +204,23 @@
         <!-- Info Section -->
         <div class="mt-16 pt-12 border-t border-border">
             <div class="max-w-2xl">
-                <h3 class="text-lg font-medium mb-4">Come funziona</h3>
+                <h3 class="text-lg font-medium mb-4">How it work</h3>
                 <div class="space-y-3 text-muted-foreground">
                     <p class="flex items-start gap-3">
                         <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">1</span>
-                        <span>Accedi o registrati tramite AWS Cognito</span>
+                        <span>Log in or sign up via AWS Cognito</span>
                     </p>
                     <p class="flex items-start gap-3">
                         <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">2</span>
-                        <span>Carica le tue immagini trascinandole nell'area di upload o cliccando per selezionarle</span>
+                        <span>Upload your images by dragging them into the upload area or by clicking to select them.</span>
                     </p>
                     <p class="flex items-start gap-3">
                         <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">3</span>
-                        <span>Le immagini vengono inviate alla funzione AWS Lambda per il ridimensionamento (solo se autenticato)</span>
+                        <span>The images are sent to the AWS Lambda function for resizing (only if authenticated).</span>
                     </p>
                     <p class="flex items-start gap-3">
                         <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">4</span>
-                        <span>Ricevi le immagini ottimizzate pronte per il download</span>
+                        <span>Receive the optimized images, ready for download.</span>
                     </p>
                 </div>
             </div>
@@ -231,7 +231,7 @@
     <footer class="border-t border-border mt-24">
         <div class="max-w-5xl mx-auto px-6 py-8">
             <p class="text-center text-sm text-muted-foreground">
-                Ridimensionamento immagini con AWS Lambda &amp; AWS Cognito
+                Image transformation from color to black and white using AWS Lambda, Cognito, S3 &amp; API Gateway.
             </p>
         </div>
     </footer>
@@ -242,12 +242,12 @@
     <script>
     // ================== CONFIGURAZIONE COGNITO ==================
     const cognitoConfig = {
-        region: 'us-east-1',
-        userPoolId: 'us-east-1_YTVEvcCc8',
-        clientId: 'uv4g7q44f6klai259v2qnl453', // App client senza secret, abilitato per SPA
-        domain: 'us-east-1ytvevccc8.auth.us-east-1.amazoncognito.com',
-        redirectUri: 'https://127.0.0.1:5500/standalone2.html', // DEVE combaciare con callback Cognito
-        logoutUri: 'https://127.0.0.1:5500/standalone2.html',   // DEVE combaciare con sign-out URL
+        region: '************',
+        userPoolId: '************',
+        clientId: '************', 
+        domain: '************',
+        redirectUri: '************', // DEVE combaciare con callback Cognito
+        logoutUri: '************',   // DEVE combaciare con sign-out URL
         scopes: 'openid email phone',
     };
 
@@ -357,8 +357,8 @@
         uploadZone.classList.add('cursor-pointer');
         selectFileBtn.classList.remove('cursor-not-allowed');
         if (lockedOverlay) lockedOverlay.style.display = 'none';
-        uploadTitle.textContent = "Trascina le tue immagini qui";
-        uploadSubtitle.textContent = "oppure clicca per sfogliare";
+        uploadTitle.textContent = "Drag your images here.";
+        uploadSubtitle.textContent = "or click to browse";
         }
     }
 
@@ -515,10 +515,6 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        handleRedirectCallback();
-    });
-
     // ================== HELPER PER IL TUO CODICE LAMBDA ==================
     function getIdTokenForApi() {
         const tokens = getStoredTokens();
@@ -557,7 +553,7 @@
         selectFileBtn.addEventListener('click', (e) => {
             e.preventDefault();
             if (!isAuthenticated) {
-                showToast('Effettua l’accesso per caricare le immagini.');
+                showToast('Log in to upload images.');
                 return;
             }
             fileInput.click();
@@ -595,7 +591,7 @@
         fileInput.addEventListener('change', (e) => {
             if (!isAuthenticated) {
                 fileInput.value = '';
-                showToast('Effettua l’accesso per caricare le immagini.');
+                showToast('Log in to upload images.');
                 return;
             }
             handleSelectedFiles(e.target.files);
@@ -664,18 +660,80 @@
             updateFilesState();
         };
 
-        window.uploadAllFiles = function () {
+        // URL della tua API Gateway (senza path dinamici)
+        const API_URL = "************";
+        const BUCKET_NAME = "amzn-s3-cc-source"; 
+
+        window.uploadAllFiles = async function () {
             if (!isAuthenticated) {
-                showToast('Devi essere autenticato per avviare l’upload.');
+                showToast("You must be authenticated to continue.");
                 return;
             }
-            showToast('Upload verso Lambda/S3 non ancora collegato (aggiungi qui la tua chiamata API).');
+
+            if (!selectedFiles || selectedFiles.length === 0) {
+                showToast("No file selected.");
+                return;
+            }
+
+            for (const file of selectedFiles) {
+                try {
+                    const idToken = getIdTokenForApi();
+
+                    // 1) API Gateway → genera presigned POST
+                    const res = await fetch(
+                        `${API_URL}/${BUCKET_NAME}?file=${encodeURIComponent(file.name)}`,
+                        {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${idToken}`
+                            }
+                        }
+                    );
+
+                    if (!res.ok) {
+                        console.error(await res.text());
+                        showToast(`Error generating URL for ${file.name}`);
+                        continue;
+                    }
+
+                    const data = await res.json();
+                    const presigned = data.URL;  // <-- tua struttura
+
+                    // 2) Costruisci FormData per S3
+                    const formData = new FormData();
+
+                    Object.entries(presigned.fields).forEach(([k, v]) => {
+                        formData.append(k, v);
+                    });
+
+                    formData.append("file", file);
+
+                    // 3) Upload diretto a S3
+                    const uploadRes = await fetch(presigned.url, {
+                        method: "POST",
+                        body: formData
+                        // IMPORTANTISSIMO: niente headers Content-Type qui
+                    });
+
+                    if (!uploadRes.ok) {
+                        console.error(await uploadRes.text());
+                        showToast(`Upload failed: ${file.name}`);
+                        continue;
+                    }
+
+                    showToast(`Loaded: ${file.name}`);
+
+                } catch (err) {
+                    console.error(err);
+                    showToast(`Unexpected error for ${file.name}`);
+                }
+            }
         };
+
     }
 
     // Estendi il DOMContentLoaded esistente
     document.addEventListener('DOMContentLoaded', () => {
-        // handleRedirectCallback è già definita sopra
         handleRedirectCallback();
         initUploadArea();
     });
