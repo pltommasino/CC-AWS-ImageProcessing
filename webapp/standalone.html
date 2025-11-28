@@ -244,7 +244,7 @@
     const cognitoConfig = {
         region: '************',
         userPoolId: '************',
-        clientId: '************', 
+        clientId: '************',
         domain: '************',
         redirectUri: '************', // DEVE combaciare con callback Cognito
         logoutUri: '************',   // DEVE combaciare con sign-out URL
@@ -603,11 +603,11 @@
             filesList.classList.remove('hidden');
 
             Array.from(fileList).forEach((file) => {
-                // aggiungi il file alla lista interna
                 selectedFiles.push(file);
 
                 const row = document.createElement('div');
                 row.className = 'file-row flex items-center justify-between bg-white border border-border rounded-lg px-4 py-3 text-sm animate-fade-in';
+                row.dataset.filename = file.name;
 
                 const info = document.createElement('div');
                 info.innerHTML = `
@@ -617,11 +617,87 @@
                     </div>
                 `;
 
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'ml-4 text-xs text-red-500 hover:text-red-600';
-                removeBtn.textContent = '✕';
+                // --- CONTENITORE BOTTONI (DESTRA) ---
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-2';
 
-                // Rimozione singolo file
+                // === BOTTONE DOWNLOAD (iOS Emoji, nascosto fino al Load) ===
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className =
+                    'bw-download-btn hidden flex items-center justify-center ' +
+                    'w-10 h-10 rounded-full border border-gray-300 bg-white ' +
+                    'text-2xl leading-none select-none ' +
+                    'hover:bg-gray-100 active:bg-gray-200 ' +
+                    'disabled:opacity-40 disabled:cursor-not-allowed';
+
+                downloadBtn.innerHTML = '⬇️';   // emoji stile iOS
+                downloadBtn.disabled = true;
+                downloadBtn.title = 'Download BW image';
+
+                downloadBtn.addEventListener('click', async () => {
+                    if (downloadBtn.disabled) return; // safety
+
+                    const tok = getIdTokenForApi();
+                    if (!tok) {
+                        showToast("Authentication error. Please log in again.");
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch(
+                            `${API_URL}/${DEST_BUCKET}?file=${encodeURIComponent(file.name)}&mode=download`,
+                            {
+                                method: "GET",
+                                headers: {
+                                    "Authorization": `Bearer ${tok}`
+                                }
+                            }
+                        );
+
+                        if (!res.ok) {
+                            console.error(await res.text());
+                            showToast(`Cannot get BW URL for ${file.name}`);
+                            return;
+                        }
+
+                        const data = await res.json();
+                        const bwUrl = data.URL;
+
+                        // Rileva iOS (iPhone / iPad / iPod)
+                        const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+
+                        if (isIOS) {
+                            // Su iOS apro direttamente l'immagine nella stessa scheda:
+                            // da lì l'utente può fare "Salva immagine"
+                            window.location.href = bwUrl;
+                        } else {
+                            // Desktop / Android: uso il link con download
+                            const a = document.createElement("a");
+                            a.href = bwUrl;
+                            a.download = `bw-${file.name}`;
+                            a.target = "_blank";
+                            a.rel = "noopener noreferrer";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        showToast(`BW download error for ${file.name}`);
+                    }
+                });
+
+                // === BOTTONE REMOVE (X) ===
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 
+                    'flex items-center justify-center ' +
+                    'w-10 h-10 rounded-full border border-gray-300 bg-white ' +
+                    'text-2xl leading-none select-none ' +
+                    'hover:bg-gray-100 active:bg-gray-200 ' +
+                    'disabled:opacity-40 disabled:cursor-not-allowed';
+                removeBtn.innerHTML = '❌';
+
                 removeBtn.addEventListener('click', () => {
                     const index = selectedFiles.indexOf(file);
                     if (index !== -1) selectedFiles.splice(index, 1);
@@ -629,14 +705,15 @@
                     updateFilesState();
                 });
 
+                actions.appendChild(downloadBtn); // PRIMA la freccia
+                actions.appendChild(removeBtn);   // POI la X
+
                 row.appendChild(info);
-                row.appendChild(removeBtn);
+                row.appendChild(actions);
                 filesContainer.appendChild(row);
             });
 
-            // permette di riselezionare gli stessi file dopo
             if (fileInput) fileInput.value = '';
-
             updateFilesState();
         }
 
@@ -662,8 +739,10 @@
 
         // URL della tua API Gateway (senza path dinamici)
         const API_URL = "************";
-        const BUCKET_NAME = "amzn-s3-cc-source"; 
+        const SOURCE_BUCKET = "amzn-s3-cc-source";
+        const DEST_BUCKET = "amzn-s3-cc-destination"; 
 
+        // UPLOAD IMAGES
         window.uploadAllFiles = async function () {
             if (!isAuthenticated) {
                 showToast("You must be authenticated to continue.");
@@ -675,13 +754,17 @@
                 return;
             }
 
+            const idToken = getIdTokenForApi();
+            if (!idToken) {
+                showToast("Authentication error. Please log in again.");
+                return;
+            }
+
             for (const file of selectedFiles) {
                 try {
-                    const idToken = getIdTokenForApi();
-
-                    // 1) API Gateway → genera presigned POST
+                    // 1) Presigned POST per upload (mode=upload)
                     const res = await fetch(
-                        `${API_URL}/${BUCKET_NAME}?file=${encodeURIComponent(file.name)}`,
+                        `${API_URL}/${SOURCE_BUCKET}?file=${encodeURIComponent(file.name)}&mode=upload`,
                         {
                             method: "GET",
                             headers: {
@@ -697,22 +780,19 @@
                     }
 
                     const data = await res.json();
-                    const presigned = data.URL;  // <-- tua struttura
+                    const presigned = data.URL;
 
-                    // 2) Costruisci FormData per S3
+                    // 2) FormData
                     const formData = new FormData();
-
                     Object.entries(presigned.fields).forEach(([k, v]) => {
                         formData.append(k, v);
                     });
-
                     formData.append("file", file);
 
                     // 3) Upload diretto a S3
                     const uploadRes = await fetch(presigned.url, {
                         method: "POST",
                         body: formData
-                        // IMPORTANTISSIMO: niente headers Content-Type qui
                     });
 
                     if (!uploadRes.ok) {
@@ -723,12 +803,81 @@
 
                     showToast(`Loaded: ${file.name}`);
 
+                    // 4) abilita il bottone ⬇ nella riga giusta
+                    const row = [...document.querySelectorAll(".file-row")]
+                        .find(r => r.dataset.filename === file.name);
+
+                    if (row) {
+                        const dlBtn = row.querySelector(".bw-download-btn");
+                        if (dlBtn) {
+                            dlBtn.disabled = false;
+                            dlBtn.classList.remove("hidden"); 
+                        }
+                    }
+
                 } catch (err) {
                     console.error(err);
                     showToast(`Unexpected error for ${file.name}`);
                 }
             }
         };
+
+
+        // DOWNLOAD IMAGES
+        window.downloadAllFiles = async function () {
+        if (!isAuthenticated) {
+            showToast("You must be authenticated to continue.");
+            return;
+        }
+
+        if (!selectedFiles || selectedFiles.length === 0) {
+            showToast("No file selected.");
+            return;
+        }
+
+        const idToken = getIdTokenForApi();
+        if (!idToken) {
+            showToast("Authentication error. Please log in again.");
+            return;
+        }
+
+        for (const file of selectedFiles) {
+            try {
+                // 1) API Gateway → presigned URL per DOWNLOAD (mode=download)
+                const res = await fetch(
+                    `${API_URL}/${DEST_BUCKET}?file=${encodeURIComponent(file.name)}&mode=download`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${idToken}`
+                        }
+                    }
+                );
+
+                if (!res.ok) {
+                    console.error(await res.text());
+                    showToast(`Cannot get BW URL for ${file.name}`);
+                    continue;
+                }
+
+                const data = await res.json();
+                const bwUrl = data.URL;
+
+                // 2) Apri il file BW in una nuova scheda (download o visualizzazione)
+                const a = document.createElement("a");
+                a.href = bwUrl;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+            } catch (err) {
+                console.error(err);
+                showToast(`BW download link error for ${file.name}`);
+            }
+        }
+    };
 
     }
 
