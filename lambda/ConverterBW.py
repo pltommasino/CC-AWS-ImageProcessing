@@ -18,7 +18,7 @@ def convert_to_bw(image_path, output_path):
 
 def lambda_handler(event, context):
     for record in event['Records']:
-        source_bucket = record['s3']['bucket']['name']      
+        source_bucket = record['s3']['bucket']['name']
         key = unquote_plus(record['s3']['object']['key'])
         
         tmpkey = key.replace('/', '')
@@ -31,5 +31,12 @@ def lambda_handler(event, context):
         # Convert image to black and white
         convert_to_bw(download_path, upload_path)
 
+        #Trigger only on webapp/ folder
+        if '/' in key:
+            folder, filename = key.rsplit('/', 1)   # e.g., "webapp", "sample.jpg"
+            dest_key = f"{folder}/bw-{filename}"    # e.g., "webapp/bw-sample.jpg"
+        else:
+            filename = key
+            dest_key = f"bw-{filename}"
         # Upload on destination bucket, keeping the same file name, adding a 'bw' prefix
         s3_client.upload_file(upload_path, DEST_BUCKET, f'bw-{key}')
