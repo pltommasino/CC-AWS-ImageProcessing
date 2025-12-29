@@ -4,7 +4,7 @@ This repository contains the complete implementation of a cloud-based system dep
 
 ## Architecture Application 📐
 
-
+<img width="1079" height="696" alt="arch" src="https://github.com/user-attachments/assets/01d45b9f-2ed4-4020-b76f-c137b7c8cec1" />
 
 ## Repository Structure 📂
 
