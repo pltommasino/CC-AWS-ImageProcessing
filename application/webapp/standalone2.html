@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BW Image Converter</title>
+    <meta name="description" content="Ridimensiona le tue foto con AWS Lambda">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .upload-zone {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .upload-zone-drag-over {
+            transform: scale(1.01);
+            background-color: rgb(245, 245, 245);
+            border-color: rgb(38, 38, 38);
+        }
+
+        .upload-zone-locked {
+            opacity: 0.45;
+            pointer-events: none;
+            filter: grayscale(0.2);
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .animate-pulse-custom {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 16px 24px;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #262626;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        background: 'rgb(250, 250, 250)',
+                        foreground: 'rgb(26, 26, 26)',
+                        border: 'rgb(229, 229, 229)',
+                        muted: {
+                            DEFAULT: 'rgb(245, 245, 245)',
+                            foreground: 'rgb(102, 102, 102)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-foreground">
+    <!-- Header -->
+    <header class="border-b border-border bg-white">
+        <div class="max-w-5xl mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-semibold tracking-tight">BW Image Converter</h1>
+                    <p class="text-sm text-muted-foreground mt-1">Tommasino Pasquale Luca &amp; Proietti Francesco Project</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="userEmail" class="text-xs text-muted-foreground hidden"></span>
+
+                    <button id="loginButton"
+                        class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-10 rounded-md px-5 text-xs"
+                        data-testid="login-button">
+                        Log In
+                    </button>
+
+                    <button id="signupButton"
+                        class="inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input shadow-sm hover:bg-accent hover:text-accent-foreground h-10 rounded-md px-5 text-xs"
+                        data-testid="signup-button">
+                        Sign Up
+                    </button>
+
+                    <button id="logoutButton"
+                        class="hidden inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input shadow-sm hover:bg-red-50 text-red-600 h-10 rounded-md px-5 text-xs">
+                        Log Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-6 py-12">
+        <!-- Upload Zone -->
+        <div id="uploadWrapper" class="relative">
+            <div id="uploadZone" class="upload-zone upload-zone-locked relative border-2 border-dashed border-border rounded-xl bg-muted cursor-not-allowed p-16 text-center">
+                <div class="flex justify-center mb-6">
+                    <div class="p-4 bg-gray-200 rounded-full">
+                        <svg class="w-10 h-10 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                </div>
+                
+                <h2 class="text-xl font-medium mb-2" id="uploadTitle">
+                    Please log in to upload images
+                </h2>
+                
+                <p class="text-muted-foreground mb-6" id="uploadSubtitle">
+                    The upload area is only available to authenticated users via AWS Cognito.
+                </p>
+                
+                <button id="selectFileBtn"
+                    class="px-6 py-2 border border-border rounded-lg bg-white font-medium shadow-sm transition-colors cursor-not-allowed">
+                    Select file/s
+                </button>
+                
+                <p class="text-xs text-muted-foreground mt-6">
+                    Supported formats: JPG, JPEG, PNG
+                </p>
+                
+                <input type="file" id="fileInput" multiple accept="image/*" class="hidden">
+            </div>
+
+            <div id="lockedOverlay"
+                class="pointer-events-none absolute inset-0 flex items-center justify-center bg-white-900/40 backdrop-blur-sm">
+                <div class="bg-white border border-border rounded-lg px-10 py-5 text-xs text-muted-foreground shadow-lg">
+                    Authenticate to unlock image uploads.
+                </div>
+            </div>
+        </div>
+
+        <!-- Files List -->
+        <div id="filesList" class="mt-12 hidden">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-medium">
+                    Images (<span id="fileCount">0</span>)
+                </h3>
+                
+                <div class="flex gap-3">
+                    <button onclick="clearAllFiles()" id="clearAllBtn" class="px-4 py-2 border border-border rounded-lg bg-white hover:bg-gray-50 text-sm font-medium transition-colors">
+                        Remove all images                    
+                    </button>
+                    
+                    <button onclick="uploadAllFiles()" id="uploadAllBtn" class="px-4 py-2 bg-foreground text-white rounded-lg hover:bg-gray-800 text-sm font-medium shadow-sm transition-colors">
+                        Load all images
+                    </button>
+                </div>
+            </div>
+
+            <div id="filesContainer" class="grid gap-4">
+                <!-- Files dynamically -->
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="mt-16 pt-12 border-t border-border">
+            <div class="max-w-2xl">
+                <h3 class="text-lg font-medium mb-4">How it work</h3>
+                <div class="space-y-3 text-muted-foreground">
+                    <p class="flex items-start gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">1</span>
+                        <span>Log in or sign up via AWS Cognito</span>
+                    </p>
+                    <p class="flex items-start gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">2</span>
+                        <span>Upload your images by dragging them into the upload area or by clicking to select them.</span>
+                    </p>
+                    <p class="flex items-start gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">3</span>
+                        <span>The images are sent to the AWS Lambda function for resizing (only if authenticated).</span>
+                    </p>
+                    <p class="flex items-start gap-3">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-foreground">4</span>
+                        <span>Receive the optimized images, ready for download.</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-border mt-24">
+        <div class="max-w-5xl mx-auto px-6 py-8">
+            <p class="text-center text-sm text-muted-foreground">
+                Image transformation from color to black and white using AWS Lambda, Cognito, S3 &amp; API Gateway.
+            </p>
+        </div>
+    </footer>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <script>
+    // ================== CONFIGURAZIONE COGNITO ==================
+    const cognitoConfig = {
+        region: 'us-east-1',
+        userPoolId: 'us-east-1_JWv4yOFBm',
+        clientId: '1p7sq676unhmf4tfjj8e20p5nu', // App client senza secret, abilitato per SPA
+        domain: 'us-east-1jwv4yofbm.auth.us-east-1.amazoncognito.com',
+        redirectUri: 'https://amzn-s3-cc-webpage.s3.us-east-1.amazonaws.com/standalone2.html', // DEVE combaciare con callback Cognito
+        logoutUri: 'https://amzn-s3-cc-webpage.s3.us-east-1.amazonaws.com/standalone2.html',   // DEVE combaciare con sign-out URL
+        scopes: "email openid phone",
+    };
+
+    // ================== UTILS PKCE ==================
+    function generateRandomString(length) {
+        const charset =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+        const randomValues = new Uint8Array(length);
+        crypto.getRandomValues(randomValues);
+        return Array.from(randomValues)
+        .map(v => charset[v % charset.length])
+        .join('');
+    }
+
+    async function sha256(plain) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(plain);
+        return await crypto.subtle.digest('SHA-256', data);
+    }
+
+    function base64UrlEncode(arrayBuffer) {
+        let string = String.fromCharCode.apply(
+        null,
+        new Uint8Array(arrayBuffer)
+        );
+        return btoa(string)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/g, '');
+    }
+
+    async function createCodeChallenge(verifier) {
+        const hashed = await sha256(verifier);
+        return base64UrlEncode(hashed);
+    }
+
+    // ================== GESTIONE TOKEN IN STORAGE ==================
+    function saveTokens(tokens) {
+        const expiresAt = Math.floor(Date.now() / 1000) + tokens.expires_in - 60;
+        const data = {
+        access_token: tokens.access_token,
+        id_token: tokens.id_token,
+        refresh_token: tokens.refresh_token || null,
+        expires_at: expiresAt,
+        };
+        localStorage.setItem('cognito_tokens', JSON.stringify(data));
+    }
+
+    function getStoredTokens() {
+        const raw = localStorage.getItem('cognito_tokens');
+        if (!raw) return null;
+        try {
+        const t = JSON.parse(raw);
+        if (!t.expires_at || t.expires_at < Date.now() / 1000) {
+            localStorage.removeItem('cognito_tokens');
+            return null;
+        }
+        return t;
+        } catch {
+        localStorage.removeItem('cognito_tokens');
+        return null;
+        }
+    }
+
+    function clearTokens() {
+        localStorage.removeItem('cognito_tokens');
+        sessionStorage.removeItem('pkce_state');
+        sessionStorage.removeItem('pkce_verifier');
+    }
+
+    // ================== DECODE ID TOKEN (SOLO PER UI) ==================
+    function decodeJwtPayload(token) {
+        if (!token) return null;
+        const parts = token.split('.');
+        if (parts.length !== 3) return null;
+        const payload = parts[1]
+        .replace(/-/g, '+')
+        .replace(/_/g, '/')
+        .padEnd(parts[1].length + (4 - (parts[1].length % 4)) % 4, '=');
+        try {
+        return JSON.parse(atob(payload));
+        } catch {
+        return null;
+        }
+    }
+
+    // ================== UI AUTH ==================
+    let isAuthenticated = false;
+
+    function setUploadLocked(locked) {
+        const uploadZone = document.getElementById('uploadZone');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const lockedOverlay = document.getElementById('lockedOverlay');
+        const uploadTitle = document.getElementById('uploadTitle');
+        const uploadSubtitle = document.getElementById('uploadSubtitle');
+
+        if (locked) {
+        uploadZone.classList.add('upload-zone-locked', 'cursor-not-allowed');
+        uploadZone.classList.remove('cursor-pointer');
+        selectFileBtn.classList.add('cursor-not-allowed');
+        if (lockedOverlay) lockedOverlay.style.display = 'flex';
+        uploadTitle.textContent = "Effettua l'accesso per caricare le immagini";
+        uploadSubtitle.textContent =
+            "L'area di upload è disponibile solo agli utenti autenticati tramite AWS Cognito";
+        } else {
+        uploadZone.classList.remove('upload-zone-locked', 'cursor-not-allowed');
+        uploadZone.classList.add('cursor-pointer');
+        selectFileBtn.classList.remove('cursor-not-allowed');
+        if (lockedOverlay) lockedOverlay.style.display = 'none';
+        uploadTitle.textContent = "Drag your images here.";
+        uploadSubtitle.textContent = "or click to browse";
+        }
+    }
+
+    function updateAuthUIFromIdToken(idToken) {
+        const loginBtn = document.getElementById('loginButton');
+        const signupBtn = document.getElementById('signupButton');
+        const logoutBtn = document.getElementById('logoutButton');
+        const userEmail = document.getElementById('userEmail');
+
+        if (!idToken) {
+        isAuthenticated = false;
+        loginBtn.classList.remove('hidden');
+        signupBtn.classList.remove('hidden');
+        logoutBtn.classList.add('hidden');
+        if (userEmail) userEmail.classList.add('hidden');
+        setUploadLocked(true);
+        return;
+        }
+
+        const payload = decodeJwtPayload(idToken);
+        const email = payload && (payload.email || payload.username);
+
+        isAuthenticated = true;
+        loginBtn.classList.add('hidden');
+        signupBtn.classList.add('hidden');
+        logoutBtn.classList.remove('hidden');
+
+        if (email && userEmail) {
+        userEmail.textContent = email;
+        userEmail.classList.remove('hidden');
+        }
+
+        setUploadLocked(false);
+    }
+
+    // ================== LOGIN / SIGNUP (HOSTED UI) ==================
+    async function startAuthFlow() {
+        const state = generateRandomString(32);
+        const codeVerifier = generateRandomString(64);
+        const codeChallenge = await createCodeChallenge(codeVerifier);
+
+        sessionStorage.setItem('pkce_state', state);
+        sessionStorage.setItem('pkce_verifier', codeVerifier);
+
+        const url =
+        `https://${cognitoConfig.domain}/oauth2/authorize` +
+        `?client_id=${encodeURIComponent(cognitoConfig.clientId)}` +
+        `&response_type=code` +
+        `&scope=${encodeURIComponent(cognitoConfig.scopes)}` +
+        `&redirect_uri=${encodeURIComponent(cognitoConfig.redirectUri)}` +
+        `&state=${encodeURIComponent(state)}` +
+        `&code_challenge_method=S256` +
+        `&code_challenge=${encodeURIComponent(codeChallenge)}`;
+
+        window.location.href = url;
+    }
+
+    document.getElementById('loginButton').addEventListener('click', () => {
+        startAuthFlow();
+    });
+
+    document.getElementById('signupButton').addEventListener('click', () => {
+        // Hosted UI gestisce sia login che registrazione, non serve flusso diverso
+        startAuthFlow();
+    });
+
+    // ================== LOGOUT ==================
+    document.getElementById('logoutButton').addEventListener('click', () => {
+        clearTokens();
+        const url =
+        `https://${cognitoConfig.domain}/logout` +
+        `?client_id=${encodeURIComponent(cognitoConfig.clientId)}` +
+        `&logout_uri=${encodeURIComponent(cognitoConfig.logoutUri)}`;
+        window.location.href = url;
+    });
+
+    // ================== CALLBACK HANDLER (dopo redirect) ==================
+    async function handleRedirectCallback() {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+
+        if (error) {
+        console.error('Cognito error:', error, params.get('error_description'));
+        clearTokens();
+        updateAuthUIFromIdToken(null);
+        return;
+        }
+
+        if (!code) {
+        // Nessun code: prova a usare token esistenti
+        const tokens = getStoredTokens();
+        if (tokens && tokens.id_token) {
+            updateAuthUIFromIdToken(tokens.id_token);
+        } else {
+            updateAuthUIFromIdToken(null);
+        }
+        return;
+        }
+
+        const savedState = sessionStorage.getItem('pkce_state');
+        const codeVerifier = sessionStorage.getItem('pkce_verifier');
+
+        if (!savedState || !codeVerifier || state !== savedState) {
+        console.error('State/PKCE mismatch, scarto la risposta.');
+        clearTokens();
+        updateAuthUIFromIdToken(null);
+        return;
+        }
+
+        // Scambia il code per i token
+        const body = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: cognitoConfig.clientId,
+        code,
+        redirect_uri: cognitoConfig.redirectUri,
+        code_verifier: codeVerifier,
+        });
+
+        try {
+        const res = await fetch(
+            `https://${cognitoConfig.domain}/oauth2/token`,
+            {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body,
+            }
+        );
+
+        if (!res.ok) {
+            console.error('Token request failed:', await res.text());
+            clearTokens();
+            updateAuthUIFromIdToken(null);
+            return;
+        }
+
+        const data = await res.json();
+        saveTokens(data);
+        updateAuthUIFromIdToken(data.id_token);
+
+        // Pulisci querystring (?code=...)
+        window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname
+        );
+        } catch (e) {
+        console.error('Token request error:', e);
+        clearTokens();
+        updateAuthUIFromIdToken(null);
+        }
+    }
+
+    // ================== HELPER PER IL TUO CODICE LAMBDA ==================
+    function getIdTokenForApi() {
+        const tokens = getStoredTokens();
+        return tokens && tokens.id_token ? tokens.id_token : null;
+    }
+
+    // ================== TOAST UTILITY ==================
+    function showToast(message) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'toast text-xs';
+        toast.textContent = message;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    // ================== UPLOAD INTERACTIONS ==================
+    function initUploadArea() {
+        const uploadZone = document.getElementById('uploadZone');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        const filesList = document.getElementById('filesList');
+        const filesContainer = document.getElementById('filesContainer');
+        const fileCount = document.getElementById('fileCount');
+        let selectedFiles = [];
+
+        if (!uploadZone || !selectFileBtn || !fileInput) return;
+
+        // Clic sul bottone "Seleziona File"
+        selectFileBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (!isAuthenticated) {
+                showToast('Log in to upload images.');
+                return;
+            }
+            fileInput.click();
+        });
+
+        // Clic sull’area di upload
+        uploadZone.addEventListener('click', (e) => {
+            if (!isAuthenticated) return;
+            // Evita che click su bottoni/link esterni scatenino l’upload
+            if (e.target.id === 'selectFileBtn') return;
+            fileInput.click();
+        });
+
+        // Drag & drop
+        uploadZone.addEventListener('dragover', (e) => {
+            if (!isAuthenticated) return;
+            e.preventDefault();
+            uploadZone.classList.add('upload-zone-drag-over');
+        });
+
+        uploadZone.addEventListener('dragleave', (e) => {
+            if (!isAuthenticated) return;
+            e.preventDefault();
+            uploadZone.classList.remove('upload-zone-drag-over');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            if (!isAuthenticated) return;
+            e.preventDefault();
+            uploadZone.classList.remove('upload-zone-drag-over');
+            handleSelectedFiles(e.dataTransfer.files);
+        });
+
+        // Selezione da file picker
+        fileInput.addEventListener('change', (e) => {
+            if (!isAuthenticated) {
+                fileInput.value = '';
+                showToast('Log in to upload images.');
+                return;
+            }
+            handleSelectedFiles(e.target.files);
+        });
+
+        
+        function handleSelectedFiles(fileList) {
+            if (!fileList || !fileList.length) return;
+            filesList.classList.remove('hidden');
+
+            Array.from(fileList).forEach((file) => {
+                selectedFiles.push(file);
+
+                const row = document.createElement('div');
+                row.className = 'file-row flex items-center justify-between bg-white border border-border rounded-lg px-4 py-3 text-sm animate-fade-in';
+                row.dataset.filename = file.name;
+
+                const info = document.createElement('div');
+                info.innerHTML = `
+                    <div class="font-medium">${file.name}</div>
+                    <div class="text-xs text-muted-foreground">
+                        ${(file.size / 1024).toFixed(1)} KB
+                    </div>
+                `;
+
+                // --- CONTENITORE BOTTONI (DESTRA) ---
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-2';
+
+                // === BOTTONE DOWNLOAD (iOS Emoji, nascosto fino al Load) ===
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className =
+                    'bw-download-btn hidden flex items-center justify-center ' +
+                    'w-10 h-10 rounded-full border border-gray-300 bg-white ' +
+                    'text-2xl leading-none select-none ' +
+                    'hover:bg-gray-100 active:bg-gray-200 ' +
+                    'disabled:opacity-40 disabled:cursor-not-allowed';
+
+                downloadBtn.innerHTML = '⬇️';   // emoji stile iOS
+                downloadBtn.disabled = true;
+                downloadBtn.title = 'Download BW image';
+
+                downloadBtn.addEventListener('click', async () => {
+                    if (downloadBtn.disabled) return; // safety
+
+                    const tok = getIdTokenForApi();
+                    if (!tok) {
+                        showToast("Authentication error. Please log in again.");
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch(
+                            `${API_URL}/${DEST_BUCKET}?file=${encodeURIComponent(file.name)}&mode=download`,
+                            {
+                                method: "GET",
+                                headers: {
+                                    "Authorization": `Bearer ${tok}`
+                                }
+                            }
+                        );
+
+                        if (!res.ok) {
+                            console.error(await res.text());
+                            showToast(`Cannot get BW URL for ${file.name}`);
+                            return;
+                        }
+
+                        const data = await res.json();
+                        const bwUrl = data.URL;
+
+                        // Rileva iOS (iPhone / iPad / iPod)
+                        const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+
+                        if (isIOS) {
+                            // Su iOS apro direttamente l'immagine nella stessa scheda:
+                            // da lì l'utente può fare "Salva immagine"
+                            window.location.href = bwUrl;
+                        } else {
+                            // Desktop / Android: uso il link con download
+                            const a = document.createElement("a");
+                            a.href = bwUrl;
+                            a.download = `bw-${file.name}`;
+                            a.target = "_blank";
+                            a.rel = "noopener noreferrer";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        }
+
+                    } catch (err) {
+                        console.error(err);
+                        showToast(`BW download error for ${file.name}`);
+                    }
+                });
+
+                // === BOTTONE REMOVE (X) ===
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 
+                    'flex items-center justify-center ' +
+                    'w-10 h-10 rounded-full border border-gray-300 bg-white ' +
+                    'text-2xl leading-none select-none ' +
+                    'hover:bg-gray-100 active:bg-gray-200 ' +
+                    'disabled:opacity-40 disabled:cursor-not-allowed';
+                removeBtn.innerHTML = '❌';
+
+                removeBtn.addEventListener('click', () => {
+                    const index = selectedFiles.indexOf(file);
+                    if (index !== -1) selectedFiles.splice(index, 1);
+                    row.remove();
+                    updateFilesState();
+                });
+
+                actions.appendChild(downloadBtn); // PRIMA la freccia
+                actions.appendChild(removeBtn);   // POI la X
+
+                row.appendChild(info);
+                row.appendChild(actions);
+                filesContainer.appendChild(row);
+            });
+
+            if (fileInput) fileInput.value = '';
+            updateFilesState();
+        }
+
+        function updateFilesState() {
+            const rows = filesContainer.querySelectorAll('.file-row').length;
+            fileCount.textContent = rows;
+
+            if (rows === 0) {
+                filesList.classList.add('hidden');
+                if (fileInput) fileInput.value = '';
+            } else {
+                filesList.classList.remove('hidden');
+            }
+        }
+
+
+        // Pulsanti lista (stub semplici, collegali poi alla tua logica S3/Lambda)
+        window.clearAllFiles = function () {
+            selectedFiles = [];
+            filesContainer.innerHTML = '';
+            updateFilesState();
+        };
+
+        // URL della tua API Gateway (senza path dinamici)
+        const API_URL = "https://pn6adjok9a.execute-api.us-east-1.amazonaws.com/v2";
+        const SOURCE_BUCKET = "amzn-s3-cc-source";
+        const DEST_BUCKET = "amzn-s3-cc-destination"; 
+
+        // UPLOAD IMAGES
+        window.uploadAllFiles = async function () {
+            if (!isAuthenticated) {
+                showToast("You must be authenticated to continue.");
+                return;
+            }
+
+            if (!selectedFiles || selectedFiles.length === 0) {
+                showToast("No file selected.");
+                return;
+            }
+
+            const idToken = getIdTokenForApi();
+            if (!idToken) {
+                showToast("Authentication error. Please log in again.");
+                return;
+            }
+
+            for (const file of selectedFiles) {
+                try {
+                    // 1) Presigned POST per upload (mode=upload)
+                    const res = await fetch(
+                        `${API_URL}/${SOURCE_BUCKET}?file=${encodeURIComponent(file.name)}&mode=upload`,
+                        {
+                            method: "GET",
+                            headers: {
+                                "Authorization": `Bearer ${idToken}`
+                            }
+                        }
+                    );
+
+                    if (!res.ok) {
+                        console.error(await res.text());
+                        showToast(`Error generating URL for ${file.name}`);
+                        continue;
+                    }
+
+                    const data = await res.json();
+                    const presigned = data.URL;
+
+                    // 2) FormData
+                    const formData = new FormData();
+                    Object.entries(presigned.fields).forEach(([k, v]) => {
+                        formData.append(k, v);
+                    });
+                    formData.append("file", file);
+
+                    // 3) Upload diretto a S3
+                    const uploadRes = await fetch(presigned.url, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (!uploadRes.ok) {
+                        console.error(await uploadRes.text());
+                        showToast(`Upload failed: ${file.name}`);
+                        continue;
+                    }
+
+                    showToast(`Loaded: ${file.name}`);
+
+                    // 4) abilita il bottone ⬇ nella riga giusta
+                    const row = [...document.querySelectorAll(".file-row")]
+                        .find(r => r.dataset.filename === file.name);
+
+                    if (row) {
+                        const dlBtn = row.querySelector(".bw-download-btn");
+                        if (dlBtn) {
+                            dlBtn.disabled = false;
+                            dlBtn.classList.remove("hidden"); 
+                        }
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    showToast(`Unexpected error for ${file.name}`);
+                }
+            }
+        };
+
+
+        // DOWNLOAD IMAGES
+        window.downloadAllFiles = async function () {
+        if (!isAuthenticated) {
+            showToast("You must be authenticated to continue.");
+            return;
+        }
+
+        if (!selectedFiles || selectedFiles.length === 0) {
+            showToast("No file selected.");
+            return;
+        }
+
+        const idToken = getIdTokenForApi();
+        if (!idToken) {
+            showToast("Authentication error. Please log in again.");
+            return;
+        }
+
+        for (const file of selectedFiles) {
+            try {
+                // 1) API Gateway → presigned URL per DOWNLOAD (mode=download)
+                const res = await fetch(
+                    `${API_URL}/${DEST_BUCKET}?file=${encodeURIComponent(file.name)}&mode=download`,
+                    {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Bearer ${idToken}`
+                        }
+                    }
+                );
+
+                if (!res.ok) {
+                    console.error(await res.text());
+                    showToast(`Cannot get BW URL for ${file.name}`);
+                    continue;
+                }
+
+                const data = await res.json();
+                const bwUrl = data.URL;
+
+                // 2) Apri il file BW in una nuova scheda (download o visualizzazione)
+                const a = document.createElement("a");
+                a.href = bwUrl;
+                a.target = "_blank";
+                a.rel = "noopener noreferrer";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+
+            } catch (err) {
+                console.error(err);
+                showToast(`BW download link error for ${file.name}`);
+            }
+        }
+    };
+
+    }
+
+    // Estendi il DOMContentLoaded esistente
+    document.addEventListener('DOMContentLoaded', () => {
+        handleRedirectCallback();
+        initUploadArea();
+    });
+
+    // Aggiorna la UI quando cambia lo stato di autenticazione
+    const originalUpdateAuthUIFromIdToken = updateAuthUIFromIdToken;
+    updateAuthUIFromIdToken = function (idToken) {
+        originalUpdateAuthUIFromIdToken(idToken);
+        // Assicura che l’area sia aggiornata in base a isAuthenticated
+        if (!isAuthenticated) {
+            setUploadLocked(true);
+        } else {
+            setUploadLocked(false);
+        }
+    };
+    </script>
+</body>
+</html>
