@@ -25,4 +25,6 @@ This repository contains the complete implementation of a cloud-based system dep
 
 The performance evaluation was deliberately conducted using a different architecture from the production-like system. This design choice was made to avoid bottlenecks, interference, and unwanted noise introduced by non-essential components. Rather than evaluating the entire architecture, the analysis focuses exclusively on the core component of the system, the **ConvertBW**. By isolating this critical service, we were able to: obtain more reliable and reproducible performance measurements, accurately analyze scalability and throughput and prevent results from being biased by auxiliary services or infrastructure overhead. This approach enables a cleaner, more controlled, and more meaningful assessment of the system’s computational core.
 
+<img width="975" height="748" alt="performance_arch" src="https://github.com/user-attachments/assets/d5ce308b-c4a6-4670-ae3d-7080c46ab8e8" />
+
 
